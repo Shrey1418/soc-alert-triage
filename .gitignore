@@ -20,3 +20,4 @@ mlruns/
 *.tfstate
 *.tfstate.*
 *.tfvars
+logs/

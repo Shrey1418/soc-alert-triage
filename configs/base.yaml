@@ -1,0 +1,9 @@
+paths:
+  raw_dir: data/raw
+  processed_dir: data/processed
+  sample_dir: data/sample
+  artifacts_dir: artifacts
+
+sampling:
+  fraction: 0.05
+  seed: 42
