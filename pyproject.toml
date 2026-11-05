@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "soc-triage"
+version = "0.1.0"
+description = "SOC incident triage grade prediction with drift monitoring"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pandas",
+    "numpy",
+    "pyarrow",
+    "scikit-learn",
+    "lightgbm",
+    "pyyaml",
+    "python-dotenv",
+]
+
+[project.optional-dependencies]
+api = ["fastapi", "uvicorn[standard]", "pydantic", "httpx"]
+cloud = ["boto3"]
+monitoring = ["evidently"]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "ruff",
+    "pre-commit",
+    "jupyter",
+    "ipykernel",
+    "matplotlib",
+    "seaborn",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
