@@ -27,7 +27,6 @@ dev = [
     "pytest-cov",
     "ruff",
     "pre-commit",
-    "jupyter",
     "ipykernel",
     "matplotlib",
     "seaborn",
