@@ -11,3 +11,32 @@ data:
 sampling:
   fraction: 0.05
   seed: 42
+
+features:
+  entity_columns:
+    - DeviceId
+    - Sha256
+    - IpAddress
+    - Url
+    - AccountSid
+    - AccountUpn
+    - AccountObjectId
+    - AccountName
+    - DeviceName
+    - NetworkMessageId
+    - RegistryKey
+    - ApplicationId
+    - FileName
+    - FolderPath
+  category_columns:
+    - Category
+    - EntityType
+    - EvidenceRole
+    - SuspicionLevel
+    - LastVerdict
+    - ResourceType
+    - OSFamily
+
+split:
+  train_frac: 0.70
+  valid_frac: 0.15
