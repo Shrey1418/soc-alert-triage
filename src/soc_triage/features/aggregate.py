@@ -33,6 +33,13 @@ def _mitre_counts(df):
     return exploded.groupby(INCIDENT_KEY)["tech"].nunique().rename("n_mitre_techniques")
 
 
+def _dominant(df, col, name):
+    counts = df.groupby([*INCIDENT_KEY, col], observed=True).size().rename("n").reset_index()
+    top = counts.sort_values(["n", col], ascending=[False, True])
+    top = top.drop_duplicates(INCIDENT_KEY)
+    return top.set_index(INCIDENT_KEY)[col].rename(name)
+
+
 def _category_shares(df, col, top_n, max_categories):
     if df[col].nunique() > max_categories:
         logger.warning("Skipping %s: more than %d distinct values", col, max_categories)
@@ -62,6 +69,8 @@ def build_incident_table(df, entity_cols, category_cols, top_n=12, max_categorie
 
     table = work.groupby(INCIDENT_KEY, sort=False).agg(**aggs)
     table = table.join(_mitre_counts(df), how="left")
+    table = table.join(_dominant(df, "AlertTitle", "dominant_alert_title"), how="left")
+    table = table.join(_dominant(df, "DetectorId", "dominant_detector"), how="left")
     for col in category_cols:
         shares = _category_shares(df, col, top_n, max_categories)
         if shares is not None:
