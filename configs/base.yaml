@@ -40,3 +40,33 @@ features:
 split:
   train_frac: 0.70
   valid_frac: 0.15
+
+model:
+  seed: 42
+  lightgbm:
+    n_estimators: 2000
+    learning_rate: 0.05
+    num_leaves: 63
+    min_child_samples: 20
+    subsample: 0.8
+    subsample_freq: 1
+    colsample_bytree: 0.8
+    early_stopping_rounds: 50
+
+# Illustrative assumptions, in arbitrary cost points per incident.
+# Rows are the true grade, columns are what the model decides.
+# Predicting TruePositive means escalate, BenignPositive means review later,
+# FalsePositive means dismiss.
+cost:
+  TruePositive:
+    TruePositive: 0
+    BenignPositive: 20
+    FalsePositive: 50
+  BenignPositive:
+    TruePositive: 2
+    BenignPositive: 0
+    FalsePositive: 1
+  FalsePositive:
+    TruePositive: 2
+    BenignPositive: 1
+    FalsePositive: 0
