@@ -42,8 +42,12 @@ class OutOfFoldTargetEncoder:
         Xr = X.reset_index(drop=True)
         yr = y.reset_index(drop=True)
         onehot = self._onehot(yr)
-        out = np.zeros((len(Xr), len(self.columns) * len(self.classes)))
 
+        if not self.columns:
+            self.maps_, self.prior_ = {}, onehot.mean()
+            return pd.DataFrame(index=X.index)
+
+        out = np.zeros((len(Xr), len(self.columns) * len(self.classes)))
         folds = StratifiedKFold(self.n_splits, shuffle=True, random_state=self.seed)
         for fit_idx, enc_idx in folds.split(Xr, yr):
             maps, prior = self._fit_maps(Xr.iloc[fit_idx], onehot.iloc[fit_idx])
@@ -53,6 +57,8 @@ class OutOfFoldTargetEncoder:
         return pd.DataFrame(out, columns=self.feature_names(), index=X.index)
 
     def transform(self, X):
+        if not self.columns:
+            return pd.DataFrame(index=X.index)
         out = self._apply(X, self.maps_, self.prior_)
         out.index = X.index
         return out

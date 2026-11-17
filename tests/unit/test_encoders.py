@@ -43,3 +43,11 @@ def test_unseen_category_falls_back_to_prior():
     out = enc.transform(pd.DataFrame({"a": [999]}))
     prior = y.value_counts(normalize=True).reindex(CLASSES).to_numpy()
     assert np.allclose(out.iloc[0].to_numpy(), prior)
+
+
+def test_encoder_with_no_columns_returns_empty_frame():
+    X, y = make_table()
+    enc = OutOfFoldTargetEncoder([], CLASSES, seed=1)
+
+    assert enc.fit_transform(X, y).shape == (len(X), 0)
+    assert enc.transform(X).shape == (len(X), 0)

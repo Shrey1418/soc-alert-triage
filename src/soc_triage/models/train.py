@@ -1,3 +1,5 @@
+import inspect
+
 import numpy as np
 import pandas as pd
 from lightgbm import LGBMClassifier, early_stopping
@@ -13,24 +15,31 @@ from soc_triage.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-ENCODE_COLS = ["dominant_alert_title", "dominant_detector"]
-DROP_COLS = ["OrgId", "IncidentId", "start_time", "end_time"]
+ENCODE_COLS = ("dominant_alert_title", "dominant_detector")
+DROP_COLS = ("OrgId", "IncidentId", "start_time", "end_time")
 
 
-def numeric_feature_columns(table):
-    skip = {*DROP_COLS, *ENCODE_COLS, TARGET}
+def numeric_feature_columns(table, drop_cols=()):
+    skip = {*DROP_COLS, *ENCODE_COLS, *drop_cols, TARGET}
     return [c for c in table.columns if c not in skip]
 
 
-def build_matrices(train, valid, test, classes, seed):
-    train, valid, test = (part.reset_index(drop=True) for part in (train, valid, test))
-    numeric = numeric_feature_columns(train)
-    encoder = OutOfFoldTargetEncoder(ENCODE_COLS, classes, seed=seed)
+def transform_table(table, encoder, feature_names):
+    table = table.reset_index(drop=True)
+    encoded = encoder.transform(table[encoder.columns])
+    return pd.concat([table, encoded], axis=1).reindex(columns=feature_names, fill_value=0)
 
-    train_te = encoder.fit_transform(train[ENCODE_COLS], train[TARGET])
+
+def build_matrices(train, valid, test, classes, seed, drop_cols=(), encode_cols=ENCODE_COLS):
+    train, valid, test = (part.reset_index(drop=True) for part in (train, valid, test))
+    numeric = numeric_feature_columns(train, drop_cols)
+    encoder = OutOfFoldTargetEncoder(encode_cols, classes, seed=seed)
+
+    train_te = encoder.fit_transform(train[encoder.columns], train[TARGET])
     X_train = pd.concat([train[numeric], train_te], axis=1)
-    X_valid = pd.concat([valid[numeric], encoder.transform(valid[ENCODE_COLS])], axis=1)
-    X_test = pd.concat([test[numeric], encoder.transform(test[ENCODE_COLS])], axis=1)
+    names = list(X_train.columns)
+    X_valid = transform_table(valid, encoder, names)
+    X_test = transform_table(test, encoder, names)
     return encoder, X_train, X_valid, X_test
 
 
@@ -40,11 +49,16 @@ def fit_lightgbm(X_train, y_train, X_valid, y_valid, params, seed):
     model = LGBMClassifier(
         objective="multiclass", random_state=seed, n_jobs=-1, verbose=-1, **params
     )
+
+    if "eval_X" in inspect.signature(LGBMClassifier.fit).parameters:
+        evaluation = {"eval_X": X_valid, "eval_y": y_valid}
+    else:
+        evaluation = {"eval_set": [(X_valid, y_valid)]}
     model.fit(
         X_train,
         y_train,
-        eval_set=[(X_valid, y_valid)],
         callbacks=[early_stopping(stop_rounds, verbose=False)],
+        **evaluation,
     )
     logger.info("LightGBM best iteration: %s", model.best_iteration_)
     return model
@@ -65,8 +79,8 @@ def score_model(model, X, y, classes, cost):
     return scored
 
 
-def run_training(table, cfg):
-    missing = [c for c in ENCODE_COLS if c not in table.columns]
+def run_training(table, cfg, drop_cols=(), encode_cols=ENCODE_COLS):
+    missing = [c for c in encode_cols if c not in table.columns]
     if missing:
         raise DataValidationError(
             f"Columns {missing} missing. Rebuild the table: python scripts/build_features.py"
@@ -80,7 +94,9 @@ def run_training(table, cfg):
     split_summary = summarize_splits(train, valid, test)
     logger.info("Split sizes: train=%d valid=%d test=%d", len(train), len(valid), len(test))
 
-    encoder, X_train, X_valid, X_test = build_matrices(train, valid, test, classes, seed)
+    encoder, X_train, X_valid, X_test = build_matrices(
+        train, valid, test, classes, seed, drop_cols, encode_cols
+    )
     y_train, y_valid, y_test = (
         part[TARGET].reset_index(drop=True) for part in (train, valid, test)
     )
