@@ -3,15 +3,20 @@
 Status: accepted
 
 ## Context
-The input is a tabular incident table with about 75 numeric features: counts, shares, durations, and encoded alert and detector identifiers. There are three classes with moderate imbalance (roughly 41% BenignPositive, 37% TruePositive, 22% FalsePositive in the sample). Missing a real threat costs far more than escalating a harmless incident.
+The input is a tabular incident table with about 75 features: counts, category shares, durations, time-of-day features, and two high-cardinality identifiers (dominant alert title and dominant detector). There are three classes. At incident level in the 5% sample, the labelled incidents are about 49% BenignPositive, 30% FalsePositive and 20.5% TruePositive. Missing a real threat costs far more than escalating a harmless incident.
 
 ## Decision
 - Model: LightGBM multiclass, with early stopping on the validation split.
 - Baselines: majority class, and logistic regression on log-scaled features.
-- No class weights. The model keeps natural probabilities, and the class asymmetry is handled by a cost matrix at decision time.
+- No class weights. The model keeps natural probabilities, and the cost asymmetry is handled by a cost matrix at decision time.
 - Decision rule: pick the class with the lowest expected cost, and report the plain argmax rule next to it.
-- High-cardinality identifiers (dominant alert title and detector) are target-encoded out-of-fold, fit on the training split only.
+- Dominant alert title and detector are target-encoded out of fold, fitted on the training split only.
 - Model choice and early stopping use the validation split only. The test split is used for reporting.
+
+## Evidence on the 5% sample (to be refreshed on full data)
+- Test macro-F1: LightGBM 0.763, logistic regression 0.717, majority class 0.214.
+- Cost per incident on the test split under the min-cost rule: LightGBM 1.08, logistic regression 1.25, escalate everything 1.59. The plain argmax rule costs 2.50, which is worse than escalating everything.
+- The six encoded alert-title and detector columns carry most of the model's gain. Ablation runs (scripts/ablate.py) show how much accuracy depends on them.
 
 ## Alternatives considered
 - XGBoost: similar accuracy on tabular data, but LightGBM trains faster on millions of rows.
@@ -20,6 +25,7 @@ The input is a tabular incident table with about 75 numeric features: counts, sh
 - Class weights: would distort the probabilities that the cost rule depends on.
 
 ## Consequences
-- The cost matrix values are illustrative assumptions, not measured costs. Results should be shown across a range of assumptions.
-- Probabilities are used directly in the cost rule, so their calibration should be checked before relying on the cost numbers.
+- The cost matrix values are illustrative assumptions, not measured costs. Results are reported across a range of miss penalties.
+- Probabilities feed the cost rule directly, so their calibration is checked in scripts/evaluate.py before the cost numbers are trusted.
 - Macro-F1 and cost per incident can disagree. Both are reported.
+- A model that leans on alert title and detector will weaken when new titles and detectors appear, which is what drift monitoring should watch.
