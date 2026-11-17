@@ -40,18 +40,24 @@ def _dominant(df, col, name):
     return top.set_index(INCIDENT_KEY)[col].rename(name)
 
 
-def _category_shares(df, col, top_n, max_categories):
+def local_category_values(df, col, top_n, max_categories):
     if df[col].nunique() > max_categories:
         logger.warning("Skipping %s: more than %d distinct values", col, max_categories)
         return None
+    return list(df[col].value_counts().head(top_n).index)
+
+
+def _category_shares(df, col, values):
     counts = pd.crosstab([df[k] for k in INCIDENT_KEY], df[col])
-    top = counts.sum().nlargest(top_n).index
-    shares = counts[top].div(counts.sum(axis=1), axis=0)
-    shares.columns = [f"{col}__{_clean(v)}" for v in top]
+    counts.columns = counts.columns.astype("object")
+    shares = counts.reindex(columns=values, fill_value=0).div(counts.sum(axis=1), axis=0)
+    shares.columns = [f"{col}__{_clean(v)}" for v in values]
     return shares
 
 
-def build_incident_table(df, entity_cols, category_cols, top_n=12, max_categories=50):
+def build_incident_table(
+    df, entity_cols, category_cols, top_n=12, max_categories=50, category_values=None
+):
     start = pd.to_datetime(df["Timestamp"], utc=True, errors="coerce", format="ISO8601")
     work = df.assign(_ts=start)
 
@@ -72,9 +78,12 @@ def build_incident_table(df, entity_cols, category_cols, top_n=12, max_categorie
     table = table.join(_dominant(df, "AlertTitle", "dominant_alert_title"), how="left")
     table = table.join(_dominant(df, "DetectorId", "dominant_detector"), how="left")
     for col in category_cols:
-        shares = _category_shares(df, col, top_n, max_categories)
-        if shares is not None:
-            table = table.join(shares, how="left")
+        if category_values is None:
+            values = local_category_values(df, col, top_n, max_categories)
+        else:
+            values = category_values.get(col)
+        if values:
+            table = table.join(_category_shares(df, col, values), how="left")
 
     table = table.reset_index()
     fill_cols = [c for c in table.columns if c == "n_mitre_techniques" or "__" in c]

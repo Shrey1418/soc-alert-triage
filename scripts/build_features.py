@@ -1,6 +1,7 @@
 import argparse
 
 from soc_triage.features.aggregate import build_incident_table, read_columns, usable_columns
+from soc_triage.features.chunked import build_incident_table_chunked
 from soc_triage.models.split import summarize_splits, time_split
 from soc_triage.utils.config import PROJECT_ROOT, load_config
 from soc_triage.utils.logger import get_logger
@@ -24,6 +25,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Build the incident-level feature table")
     parser.add_argument("--input", default="data/processed/train_sample.parquet")
     parser.add_argument("--out", default="data/processed/incidents_sample.parquet")
+    parser.add_argument("--buckets", type=int, default=1, help="1 = in memory, more = chunked")
     args = parser.parse_args()
 
     src = PROJECT_ROOT / args.input
@@ -32,11 +34,17 @@ def main() -> None:
     if missing_entity or missing_cat:
         logger.warning("Configured columns not in data: %s", missing_entity + missing_cat)
 
-    wanted = BASE_COLUMNS + entity_cols + category_cols
-    categorical = [*entity_cols, *category_cols, "MitreTechniques"]
-    df = read_columns(src, wanted, categorical)
+    if args.buckets > 1:
+        work_dir = PROJECT_ROOT / cfg["paths"]["processed_dir"] / "_buckets"
+        table = build_incident_table_chunked(
+            src, work_dir, BASE_COLUMNS, entity_cols, category_cols, args.buckets
+        )
+    else:
+        wanted = BASE_COLUMNS + entity_cols + category_cols
+        categorical = [*entity_cols, *category_cols, "MitreTechniques"]
+        df = read_columns(src, wanted, categorical)
+        table = build_incident_table(df, entity_cols, category_cols)
 
-    table = build_incident_table(df, entity_cols, category_cols)
     out = PROJECT_ROOT / args.out
     out.parent.mkdir(parents=True, exist_ok=True)
     table.to_parquet(out, index=False)
