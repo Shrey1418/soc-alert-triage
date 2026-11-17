@@ -19,6 +19,23 @@ ENCODE_COLS = ("dominant_alert_title", "dominant_detector")
 DROP_COLS = ("OrgId", "IncidentId", "start_time", "end_time")
 
 
+class CodedClassifier:
+    def __init__(self, model, classes):
+        self.model = model
+        self.classes_ = np.array(classes)
+
+    @property
+    def booster_(self):
+        return self.model.booster_
+
+    @property
+    def best_iteration_(self):
+        return self.model.best_iteration_
+
+    def predict_proba(self, X):
+        return self.model.predict_proba(X)
+
+
 def numeric_feature_columns(table, drop_cols=()):
     skip = {*DROP_COLS, *ENCODE_COLS, *drop_cols, TARGET}
     return [c for c in table.columns if c not in skip]
@@ -43,25 +60,29 @@ def build_matrices(train, valid, test, classes, seed, drop_cols=(), encode_cols=
     return encoder, X_train, X_valid, X_test
 
 
-def fit_lightgbm(X_train, y_train, X_valid, y_valid, params, seed):
+def fit_lightgbm(X_train, y_train, X_valid, y_valid, params, seed, classes):
     params = dict(params)
     stop_rounds = params.pop("early_stopping_rounds")
+
+    code = {c: i for i, c in enumerate(classes)}
+    train_codes = y_train.map(code).to_numpy(dtype=int)
+    valid_codes = y_valid.map(code).to_numpy(dtype=int)
+
     model = LGBMClassifier(
         objective="multiclass", random_state=seed, n_jobs=-1, verbose=-1, **params
     )
-
     if "eval_X" in inspect.signature(LGBMClassifier.fit).parameters:
-        evaluation = {"eval_X": X_valid, "eval_y": y_valid}
+        evaluation = {"eval_X": X_valid, "eval_y": valid_codes}
     else:
-        evaluation = {"eval_set": [(X_valid, y_valid)]}
+        evaluation = {"eval_set": [(X_valid, valid_codes)]}
     model.fit(
         X_train,
-        y_train,
+        train_codes,
         callbacks=[early_stopping(stop_rounds, verbose=False)],
         **evaluation,
     )
     logger.info("LightGBM best iteration: %s", model.best_iteration_)
-    return model
+    return CodedClassifier(model, classes)
 
 
 def score_model(model, X, y, classes, cost):
@@ -105,7 +126,7 @@ def run_training(table, cfg, drop_cols=(), encode_cols=ENCODE_COLS):
         "majority": make_majority().fit(X_train, y_train),
         "logreg": make_logreg(seed).fit(X_train, y_train),
         "lightgbm": fit_lightgbm(
-            X_train, y_train, X_valid, y_valid, cfg["model"]["lightgbm"], seed
+            X_train, y_train, X_valid, y_valid, cfg["model"]["lightgbm"], seed, classes
         ),
     }
     results = {
