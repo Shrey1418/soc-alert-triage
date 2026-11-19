@@ -3,7 +3,7 @@ param([Parameter(Position = 0)][string]$Task = "help")
 switch ($Task) {
     "setup" {
         python -m pip install --upgrade pip
-        python -m pip install -e ".[dev]"
+        python -m pip install -e ".[dev,api]"
     }
     "lint" {
         ruff check src tests scripts
