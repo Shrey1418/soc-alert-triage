@@ -28,4 +28,4 @@ The input is a tabular incident table with about 75 features: counts, category s
 - The cost matrix values are illustrative assumptions, not measured costs. Results are reported across a range of miss penalties.
 - Probabilities feed the cost rule directly, so their calibration is checked in scripts/evaluate.py before the cost numbers are trusted.
 - Macro-F1 and cost per incident can disagree. Both are reported.
-- A model that leans on alert title and detector will weaken when new titles and detectors appear, which is what drift monitoring should watch.
+- The model leans on alert title and detector, so new titles and detectors are a risk. In the full-data test window about 8% of incidents had a never-seen dominant alert title and they were not scored worse (see README), but they had a lower threat share, so this stays a monitored risk and not a measured one. Drift monitoring should track the unseen-value rate.

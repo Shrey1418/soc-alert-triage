@@ -115,10 +115,17 @@ tests/        unit and integration tests
 docs/decisions/  ADR 0001 (model choice), ADR 0002 (incident-level modelling)
 ```
 
+## Documentation and related projects
+- Design decisions: [ADR 0001, model choice and cost-aware decisions](docs/decisions/0001-model-choice-lightgbm.md) and [ADR 0002, incident-level modelling and time-based split](docs/decisions/0002-incident-level-modelling.md)
+- Exploration: [EDA notebook](notebooks/01_eda.ipynb)
+- Other projects, built with the same modular structure:
+  - [Loan Default Risk Prediction](https://github.com/Shrey1418/loan-default-risk-prediction): credit card default model with SHAP explanations and a profit-based approval threshold
+  - [Hospital Readmission Risk Prediction](https://github.com/Shrey1418/hospital-readmission-risk-prediction): 30-day readmission model with calibrated probabilities and a cost-based call policy
+
 ## Limitations
 - The cost matrix is an illustrative assumption. Results are shown across a range of missed-threat penalties.
 - The model is a filter, not a precise detector: 30.9% of escalated incidents are real threats.
-- About 40% of the saving depends on alert title and detector. About 8.0% of test incidents have a dominant alert title never seen in training (0.9% for the detector); for those the encoding falls back to the overall class mix.
+- About 40% of the saving depends on alert title and detector. About 8.0% of test incidents have a dominant alert title never seen in training (0.9% for the detector), and the encoding falls back to the overall class mix for them. In this test window those incidents scored better than the rest (macro-F1 0.879 vs 0.782 with the most-likely-class rule, cost 0.277 vs 1.076 with the min-cost rule), but only 9.4% of them are real threats against 20.8% for the rest, so the two groups are not comparable. This is one window, not proof that new alert titles are safe.
 - The validation period is about 1.5 days and the test period about 4 days, and the class mix moves between periods (FalsePositive is 27.6% in train, 41.3% in valid, 32.4% in test). Results may not hold for other periods.
 - Generalisation to unseen organisations was not tested. The same organisations appear in train and test.
 - Probabilities are over-confident in some ranges (see Calibration).
