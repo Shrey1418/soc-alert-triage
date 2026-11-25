@@ -2,7 +2,7 @@
 
 Predicts the triage grade of security incidents (TruePositive, BenignPositive, FalsePositive) on the Microsoft GUIDE dataset, and turns the predicted probabilities into an escalate, review-later or dismiss decision using an explicit cost matrix. Served through a FastAPI service.
 
-Status: the data pipeline, model, evaluation, API and CI are done. Docker, AWS deployment and drift monitoring are not built yet (see Roadmap).
+Status: the data pipeline, model, evaluation, API, Docker image and CI are done. AWS deployment and drift monitoring are not built yet (see Roadmap).
 
 ## Problem
 Security analysts receive more incidents than they can review, and most turn out to be benign or false alarms. The goal is to put the likely real threats in front of analysts without letting real threats slip through. Missing a real threat is much more expensive than escalating a harmless incident, so the decision rule is cost-aware instead of "pick the most likely class".
@@ -102,6 +102,16 @@ python scripts/call_api.py
 ```
 Open http://127.0.0.1:8000/docs to try POST /predict. A request is a list of evidence rows; the response has one decision per incident with the three class probabilities.
 
+## Docker
+The image serves the saved model with the same code as the local API. It copies artifacts/model.joblib, which is not in the repository, so run the training step first. The serving requirements in requirements-api.txt are pinned to the versions of the training environment, so the saved model loads with the same library versions.
+```
+docker build -t soc-triage:0.1 .
+docker run --rm -d --name soc-api -p 8000:8000 soc-triage:0.1
+python scripts/call_api.py
+docker stop soc-api
+```
+The image has a health check that calls /health every 30 seconds.
+
 ## Project layout
 ```
 src/soc_triage/
@@ -133,4 +143,4 @@ docs/decisions/  ADR 0001 (model choice), ADR 0002 (incident-level modelling)
 - The API smoke script uses a small sample that is mostly training data, so it checks the plumbing, not accuracy.
 
 ## Roadmap
-Docker image, AWS deployment with Terraform, and drift monitoring on the alert title and detector distributions. None of these are built yet.
+AWS deployment with Terraform, and drift monitoring on the alert title and detector distributions. Neither is built yet.

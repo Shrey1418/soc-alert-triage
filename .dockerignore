@@ -1,0 +1,16 @@
+.git
+.github
+.venv
+data
+logs
+notebooks
+tests
+docs
+scripts
+artifacts/*
+!artifacts/model.joblib
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+*.egg-info
