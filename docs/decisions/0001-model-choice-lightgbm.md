@@ -1,9 +1,6 @@
 # ADR 0001: LightGBM with cost-aware decisions
 
-Status: accepted
 
-## Context
-The input is a tabular incident table with about 75 features: counts, category shares, durations, time-of-day features, and two high-cardinality identifiers (dominant alert title and dominant detector). There are three classes. At incident level in the 5% sample, the labelled incidents are about 49% BenignPositive, 30% FalsePositive and 20.5% TruePositive. Missing a real threat costs far more than escalating a harmless incident.
 
 ## Decision
 - Model: LightGBM multiclass, with early stopping on the validation split.
