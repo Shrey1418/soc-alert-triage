@@ -1,0 +1,20 @@
+drift:
+  psi:
+    warn: 0.10
+    alert: 0.25
+  ks:
+    warn: 0.10
+    alert: 0.20
+  prediction_psi:
+    warn: 0.10
+    alert: 0.25
+  unseen_rate:
+    dominant_alert_title:
+      warn: 0.12
+      alert: 0.25
+    dominant_detector:
+      warn: 0.03
+      alert: 0.10
+  min_current_incidents: 500
+  retrain:
+    min_alert_features: 5
