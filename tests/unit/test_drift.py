@@ -154,3 +154,21 @@ def test_drift_check_is_quiet_on_clean_data_and_loud_on_shifted_data(trained):
     assert clean["decision"]["retrain"] is False
     assert shifted["unseen"]["dominant_alert_title"]["status"] == "alert"
     assert shifted["decision"]["retrain"] is True
+
+
+def test_retrain_ignores_calendar_features():
+    names = ["start_hour", "start_dow", "start_is_weekend", "n_alerts", "n_evidence_rows"]
+    features = pd.DataFrame({"feature": names, "status": ["alert"] * 5})
+    quiet = {"psi": 0.01, "status": "ok"}
+    unseen_ok = {"dominant_alert_title": {"rate": 0.05, "status": "ok"}}
+    rules = {
+        "min_current_incidents": 100,
+        "retrain": {
+            "min_alert_features": 5,
+            "ignore_features": ["start_hour", "start_dow", "start_is_weekend"],
+        },
+    }
+
+    assert retrain_decision(features, quiet, unseen_ok, 1000, rules)["retrain"] is False
+    rules["retrain"]["ignore_features"] = []
+    assert retrain_decision(features, quiet, unseen_ok, 1000, rules)["retrain"] is True

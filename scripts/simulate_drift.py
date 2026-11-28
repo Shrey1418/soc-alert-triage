@@ -38,12 +38,14 @@ def main() -> None:
     rows = []
     for name, part in windows.items():
         result = results[name]
+        counted = result["features"][result["features"]["counts_for_retrain"]]
+        alerts = int((counted["status"] == "alert").sum())
         y = part[TARGET].reset_index(drop=True)
         decision = min_cost_predictions(probabilities(bundle, part), cost, classes)
         rows.append(
             {
                 "window": name,
-                "features_in_alert": int((result["features"]["status"] == "alert").sum()),
+                "features_in_alert": alerts,
                 "prediction_psi": result["prediction"]["psi"],
                 "retrain": result["decision"]["retrain"],
                 "cost_min_cost": expected_cost(y, decision, cost, classes),

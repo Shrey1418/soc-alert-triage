@@ -18,3 +18,7 @@ drift:
   min_current_incidents: 500
   retrain:
     min_alert_features: 5
+    ignore_features:
+      - start_hour
+      - start_dow
+      - start_is_weekend
