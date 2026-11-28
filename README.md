@@ -2,7 +2,7 @@
 
 Predicts the triage grade of security incidents (TruePositive, BenignPositive, FalsePositive) on the Microsoft GUIDE dataset, and turns the predicted probabilities into an escalate, review-later or dismiss decision using an explicit cost matrix. Served through a FastAPI service.
 
-Status: the data pipeline, model, evaluation, API, Docker image and CI are done. AWS deployment and drift monitoring are not built yet (see Roadmap).
+Status: the data pipeline, model, evaluation, API, Docker image, local drift monitoring and CI are done. AWS deployment is not built yet (see Roadmap).
 
 ## Problem
 Security analysts receive more incidents than they can review, and most turn out to be benign or false alarms. The goal is to put the likely real threats in front of analysts without letting real threats slip through. Missing a real threat is much more expensive than escalating a harmless incident, so the decision rule is cost-aware instead of "pick the most likely class".
@@ -87,7 +87,7 @@ python -m venv .venv
 python -m pip install -e ".[dev,api]"
 python -m pytest -q
 ```
-The 33 tests use synthetic data and take a few seconds.
+The tests use synthetic data and take a few seconds.
 
 ## Full pipeline (needs the GUIDE data)
 Download the GUIDE training file into data/raw, then:
@@ -110,7 +110,7 @@ docker run --rm -d --name soc-api -p 8000:8000 soc-triage:0.1
 python scripts/call_api.py
 docker stop soc-api
 ```
-The image has a health check that calls /health every 30 seconds.
+The image has a health check that calls /health every 30 seconds. The image is about 948 MB on disk (222 MB of compressed content).
 
 ## Project layout
 ```
@@ -119,11 +119,43 @@ src/soc_triage/
   features/   incident aggregation, time features, target encoder, chunked build
   models/     time split, baselines, cost matrix, metrics, report tables, training
   api/        FastAPI app, request schemas, predictor
+  monitoring/ drift metrics, retrain rules, shift simulation
   utils/      config, logger, exceptions
-scripts/      convert, build_features, train, evaluate, ablate, call_api
+scripts/      convert, build_features, train, evaluate, ablate, call_api, run_drift_check, simulate_drift
 tests/        unit and integration tests
 docs/decisions/  ADR 0001 (model choice), ADR 0002 (incident-level modelling)
 ```
+
+## Drift monitoring
+A drift check compares a recent window with a reference window. For every model feature it computes the population stability index (PSI), and for numeric features the Kolmogorov-Smirnov distance. It also reports the share of incidents whose dominant alert title or detector never appeared in the reference, and the drift of the model's TruePositive probability. Thresholds are in configs/drift.yaml and are assumptions, not measured limits. A retrain decision is raised when prediction drift or an unseen-value rate reaches its alert level, or when at least 5 features alert. It is a function that returns yes or no with the reasons. No scheduled job and no automatic retraining exist yet.
+
+Calendar features (start hour, day of week, weekend flag) are shown but not counted for retraining. Short windows cover different weekdays, so their PSI measures calendar coverage and not a change in the data. In the check below the reference window (Wednesday to Thursday) has no weekend and the current window (Thursday to Monday) has one.
+```
+python scripts/run_drift_check.py
+python scripts/run_drift_check.py --reference train
+python scripts/simulate_drift.py
+```
+
+Real windows, with the validation window as reference and the test window as current:
+
+| Check | Result |
+|---|---|
+| TruePositive probability (prediction drift) | PSI 0.199 (warn); incidents escalated 59.4% in the reference, 62.8% now |
+| Dominant alert title never seen in the reference | 8.8% (ok) |
+| Dominant detector never seen in the reference | 1.4% (ok) |
+| PSI of dominant alert title and of detector | 0.141 and 0.110 (both warn) |
+| Retrain decision | no |
+
+The class mix also moved between the two windows (TruePositive 16.2% to 19.9%), which explains part of the prediction drift.
+
+Simulated shift on the test window: 30% of incidents get an alert title never seen in training, and the number of evidence rows is multiplied by 2.5. The labels are unchanged, so this tests whether the alarm fires and how much the model suffers, not how real drift behaves.
+
+| Window | Unseen alert titles | Prediction PSI | Incidents escalated | Cost per incident | Saving vs escalate everything | Retrain |
+|---|---|---|---|---|---|---|
+| Test, as is | 8.8% | 0.199 | 62.8% | 1.012 | 36.9% | no |
+| Test, simulated shift | 36.1% | 0.588 | 69.1% | 1.081 | 32.6% | yes |
+
+The shift raises the cost per incident by 6.9%, and the model still beats escalating everything (1.603). Cost needs the true grade, which a live system would typically get only after analysts close an incident, so input drift and prediction drift are the signals that can fire first.
 
 ## Documentation and related projects
 - Design decisions: [ADR 0001, model choice and cost-aware decisions](docs/decisions/0001-model-choice-lightgbm.md) and [ADR 0002, incident-level modelling and time-based split](docs/decisions/0002-incident-level-modelling.md)
@@ -143,4 +175,4 @@ docs/decisions/  ADR 0001 (model choice), ADR 0002 (incident-level modelling)
 - The API smoke script uses a small sample that is mostly training data, so it checks the plumbing, not accuracy.
 
 ## Roadmap
-AWS deployment with Terraform, and drift monitoring on the alert title and detector distributions. Neither is built yet.
+AWS deployment with Terraform, and running the drift check on a schedule with alarms. Neither is built yet.
